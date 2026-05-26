@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <!-- ========================= -->
+    <!-- META -->
+    <!-- ========================= -->
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>CareerMind AI</title>
+
+    <!-- ========================= -->
+    <!-- GOOGLE FONTS -->
+    <!-- ========================= -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <!-- ========================= -->
+    <!-- MAIN CSS -->
+    <!-- ========================= -->
+
+    <link rel="stylesheet" href="/static/style.css">
+
+</head>
+
+<body>
+
+    <!-- ========================= -->
+    <!-- NAVBAR -->
+    <!-- ========================= -->
+
+    <nav class="navbar">
+
+        <!-- LOGO -->
+
+        <div class="logo">
+            CareerMind AI
+        </div>
+
+        <!-- NAVIGATION -->
+
+        <div class="nav-links">
+
+            <a href="/"
+               class="{% if request.url.path == '/' %}active-nav{% endif %}">
+                Home
+            </a>
+
+            <a href="/study"
+               class="{% if request.url.path == '/study' %}active-nav{% endif %}">
+                Study
+            </a>
+
+            <a href="/resume"
+               class="{% if request.url.path == '/resume' %}active-nav{% endif %}">
+                Resume
+            </a>
+
+            <a href="/notes"
+               class="{% if request.url.path == '/notes' %}active-nav{% endif %}">
+                Notes
+            </a>
+
+        </div>
+
+    </nav>
+
+    <!-- ========================= -->
+    <!-- MAIN CONTENT -->
+    <!-- ========================= -->
+
+    <main>
+
+        {% block content %}
+        {% endblock %}
+
+    </main>
+
+    <!-- ========================= -->
+    <!-- FOOTER -->
+    <!-- ========================= -->
+
+    <footer class="footer">
+
+        <p>
+            CareerMind AI — AI-powered document intelligence workspace.
+        </p>
+
+    </footer>
+
+    <!-- ========================= -->
+    <!-- JAVASCRIPT -->
+    <!-- ========================= -->
+
+    <script src="/static/app.js"></script>
+
+</body>
+
+</html>

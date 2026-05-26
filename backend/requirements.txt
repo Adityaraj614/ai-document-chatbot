@@ -1,0 +1,14 @@
+flask
+python-dotenv
+pypdf
+langchain
+langchain-community
+sentence-transformers
+faiss-cpu
+reportlab
+fastapi
+uvicorn
+jinja2
+python-multipart
+pypdf
+faiss-cpu

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="resume-page">
+
+    <!-- PAGE HEADER -->
+
+    <div class="resume-header">
+
+        <p class="section-label">
+            PROFESSIONAL ANALYSIS
+        </p>
+
+        <h1>
+            Resume Analyzer
+        </h1>
+
+        <p>
+            Compare resumes against job descriptions using AI-powered semantic analysis.
+        </p>
+
+    </div>
+
+    <!-- ANALYZER GRID -->
+
+    <div class="resume-grid">
+
+        <!-- LEFT PANEL -->
+
+        <div class="resume-upload-card">
+
+            <h2>
+                Upload Resume
+            </h2>
+
+            <div class="resume-upload-box" id="resumeUploadBox">
+
+                <input type="file" id="resumeFileInput" hidden>
+
+                <p class="upload-title">
+                    Upload Resume PDF
+                </p>
+
+                <p class="upload-subtext">
+                    Drag & Drop or browse file
+                </p>
+
+            </div>
+
+            <!-- STATUS -->
+
+            <div class="resume-status">
+
+                <p>
+                    ✓ Resume Parsed Successfully
+                </p>
+
+                <span>
+                    Skills extracted and indexed
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT PANEL -->
+
+        <div class="jd-card">
+
+            <h2>
+                Job Description
+            </h2>
+
+            <textarea placeholder="Paste job description here..."></textarea>
+
+        </div>
+
+    </div>
+
+    <!-- ANALYZE BUTTON -->
+
+    <div class="analyze-section">
+
+        <button class="analyze-btn">
+            Analyze Match
+        </button>
+
+    </div>
+
+    <!-- RESULTS SECTION -->
+
+    <div class="results-section">
+
+        <div class="results-header">
+
+            <h2>
+                Analysis Results
+            </h2>
+
+            <p>
+                AI-generated semantic comparison and optimization insights.
+            </p>
+
+        </div>
+
+        <!-- RESULTS GRID -->
+
+        <div class="results-grid">
+
+            <!-- MATCH SCORE -->
+
+            <div class="result-card score-card">
+
+                <p class="result-label">
+                    MATCH SCORE
+                </p>
+
+                <h3>
+                    82%
+                </h3>
+
+                <span>
+                    Strong alignment detected
+                </span>
+
+            </div>
+
+            <!-- MISSING SKILLS -->
+
+            <div class="result-card">
+
+                <p class="result-label">
+                    MISSING SKILLS
+                </p>
+
+                <div class="skills-tags">
+
+                    <span>Docker</span>
+                    <span>Kubernetes</span>
+                    <span>AWS</span>
+
+                </div>
+
+            </div>
+
+            <!-- SUGGESTIONS -->
+
+            <div class="result-card">
+
+                <p class="result-label">
+                    OPTIMIZATION SUGGESTIONS
+                </p>
+
+                <ul>
+
+                    <li>
+                        Add more quantified project outcomes
+                    </li>
+
+                    <li>
+                        Highlight ML deployment experience
+                    </li>
+
+                    <li>
+                        Include cloud technologies section
+                    </li>
+
+                </ul>
+
+            </div>
+
+        </div>
+
+        <!-- LOADING STATE -->
+
+        <div class="resume-loading">
+
+            <span>Parsing resume...</span>
+
+            <span>Extracting skills...</span>
+
+            <span>Analyzing semantic match...</span>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}

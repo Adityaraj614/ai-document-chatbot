@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="notes-page">
+
+    <!-- HEADER -->
+
+    <div class="notes-header">
+
+        <div>
+
+            <p class="section-label">
+                KNOWLEDGE ARCHIVE
+            </p>
+
+            <h1>
+                Saved Notes
+            </h1>
+
+            <p>
+                Store AI-generated summaries, resume reports,
+                and structured learning insights.
+            </p>
+
+        </div>
+
+        <!-- EXPORT BUTTON -->
+
+        <button class="export-btn">
+            Export PDF
+        </button>
+
+    </div>
+
+    <!-- FILTERS -->
+
+    <div class="notes-filters">
+
+        <button class="active-filter">
+            All Notes
+        </button>
+
+        <button>
+            Study Notes
+        </button>
+
+        <button>
+            Resume Reports
+        </button>
+
+        <button>
+            Summaries
+        </button>
+
+    </div>
+
+    <!-- NOTES GRID -->
+
+    <div class="notes-grid">
+
+        <!-- NOTE CARD 1 -->
+
+        <div class="note-card">
+
+            <div class="note-top">
+
+                <span class="note-type">
+                    STUDY NOTE
+                </span>
+
+                <span class="note-time">
+                    2h ago
+                </span>
+
+            </div>
+
+            <h3>
+                Neural Networks Summary
+            </h3>
+
+            <p>
+
+                Generated concise explanation of neural networks,
+                backpropagation, and gradient descent concepts.
+
+            </p>
+
+            <div class="note-footer">
+
+                <span>
+                    DeepLearning.pdf
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- NOTE CARD 2 -->
+
+        <div class="note-card">
+
+            <div class="note-top">
+
+                <span class="note-type">
+                    RESUME REPORT
+                </span>
+
+                <span class="note-time">
+                    Yesterday
+                </span>
+
+            </div>
+
+            <h3>
+                ML Engineer Match Analysis
+            </h3>
+
+            <p>
+
+                Resume comparison generated with semantic
+                skill matching and optimization suggestions.
+
+            </p>
+
+            <div class="note-footer">
+
+                <span>
+                    Resume_Report.pdf
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- NOTE CARD 3 -->
+
+        <div class="note-card">
+
+            <div class="note-top">
+
+                <span class="note-type">
+                    SUMMARY
+                </span>
+
+                <span class="note-time">
+                    3 days ago
+                </span>
+
+            </div>
+
+            <h3>
+                Computer Networks Revision
+            </h3>
+
+            <p>
+
+                Structured revision notes generated for
+                routing protocols and congestion control.
+
+            </p>
+
+            <div class="note-footer">
+
+                <span>
+                    CN_Revision.pdf
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</section>
+
+{% endblock %}
