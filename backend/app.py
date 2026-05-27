@@ -2,7 +2,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import UploadFile, File
+from fastapi import UploadFile, File, Form
+from torch import mode
 from ai.llm import generate_rag_response
 import shutil
 import os
@@ -10,13 +11,14 @@ import os
 from ai.rag import (
     extract_text_from_pdf,
     clean_text,
-    basic_chunking,
-    medium_chunking,
-    high_chunking,
     generate_embeddings,
     create_faiss_index,
     search_similar_chunks
 )
+
+from ai.chunking.basic_chunker import basic_chunking
+from ai.chunking.medium_chunker import medium_chunking
+from ai.chunking.high_chunker import high_chunking
 # =========================
 # FASTAPI APP
 # =========================
@@ -97,7 +99,7 @@ async def notes(request: Request):
 @app.post("/upload-study-pdf")
 async def upload_study_pdf(
     file: UploadFile = File(...),
-    mode: str = "basic"
+    mode: str = Form("basic")
 ):
 
     upload_path = f"uploads/{file.filename}"
@@ -117,9 +119,11 @@ async def upload_study_pdf(
 
     if mode == "basic":
 
-        chunks = basic_chunking(extracted_text)
+        cleaned_text = clean_text(extracted_text)
 
-        preview = extracted_text[:1000]
+        chunks = basic_chunking(cleaned_text)
+
+        preview = cleaned_text[:1000]
         strategy = "Fixed-size chunking"
     # =========================
     # MEDIUM MODE
@@ -133,25 +137,59 @@ async def upload_study_pdf(
 
         preview = cleaned_text[:1000]
         strategy = "Cleaned overlap chunking"
+    
     # =========================
     # HIGH MODE
     # =========================
 
-    else:
+    elif mode == "high":
 
         cleaned_text = clean_text(extracted_text)
 
-        chunks = high_chunking(cleaned_text)
+        chunks = high_chunking(
+            cleaned_text,
+            document_name=file.filename
+        )
 
-        preview = chunks[0] if chunks else ""
-        strategy = "Metadata-aware hybrid chunking"
-    
+        preview = chunks[0]["content"][:1000] if chunks else ""
+
+        strategy = "Heading-aware semantic chunking"
+
+    # =========================
+    # INVALID MODE FALLBACK
+    # =========================
+
+    else:
+
+        return {
+            "error": "Invalid retrieval mode selected"
+        }
     
     # =========================
-        # GENERATE EMBEDDINGS
+    # PREPARE TEXT FOR EMBEDDINGS
     # =========================
 
-    embeddings = generate_embeddings(chunks)
+    if mode == "high":
+
+        embedding_texts = [
+
+            chunk["content"]
+
+            for chunk in chunks
+        ]
+
+    else:
+
+        embedding_texts = chunks
+
+    # =========================
+    # GENERATE EMBEDDINGS
+    # =========================
+
+    embeddings = generate_embeddings(
+        embedding_texts
+    )
+
 
     # Create FAISS index
 
@@ -210,7 +248,37 @@ async def ask_question(request: Request):
     # MERGE CONTEXT
     # =========================
 
-    context = "\n\n".join(retrieved_chunks)
+    context_parts = []
+
+    for chunk in retrieved_chunks:
+
+    # High Mode / Metadata Chunk
+
+        if chunk["section"]:
+
+            formatted_chunk = f"""
+
+    SECTION:
+    {chunk['section']}
+
+    CONTENT:
+    {chunk['content']}
+
+    """
+
+    # Basic / Medium Chunk
+
+        else:
+
+            formatted_chunk = chunk["content"]
+
+        context_parts.append(formatted_chunk)
+
+    # Final merged context
+
+    context = "\n\n".join(context_parts)
+
+    
 
     # =========================
     # GENERATE FINAL RESPONSE
@@ -222,16 +290,51 @@ async def ask_question(request: Request):
     )
 
     # =========================
-    # RETURN RESPONSE
+    # SOURCE CITATIONS
+    # =========================
+
+    sources = []
+
+    for chunk in retrieved_chunks:
+
+        if chunk["section"]:
+
+            sources.append({
+
+                "document": chunk["document"],
+
+                "section": chunk["section"]
+
+            })
+
+    # Remove duplicates
+
+    unique_sources = []
+
+    seen = set()
+
+    for source in sources:
+
+        key = (
+            source["document"],
+            source["section"]
+        )
+
+        if key not in seen:
+
+            seen.add(key)
+
+            unique_sources.append(source)
+
+    # =========================
+    # FINAL RESPONSE
     # =========================
 
     return {
 
-        "question": question,
+        "answer": final_answer,
 
-        "context": context,
-
-        "answer": final_answer
+        "sources": unique_sources
 
     }
 

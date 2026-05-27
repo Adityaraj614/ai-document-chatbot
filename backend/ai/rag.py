@@ -3,6 +3,8 @@ import re
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
+
+
 # =========================
 # EMBEDDING MODEL
 # =========================
@@ -11,6 +13,7 @@ embedding_model = SentenceTransformer(
     "all-MiniLM-L6-v2",
     device="cuda"
 )
+
 # =========================
 # EXTRACT TEXT FROM PDF
 # =========================
@@ -37,135 +40,33 @@ def extract_text_from_pdf(pdf_path):
 
 def clean_text(text):
 
-    # Remove newlines
+    # Normalize line endings
 
-    text = text.replace("\n", " ")
+    text = text.replace("\r", "\n")
 
-    # Remove excessive spaces
+    # Preserve paragraph breaks
 
-    text = " ".join(text.split())
+    text = re.sub(r'\n\s*\n', '\n\n', text)
 
-    # Fix broken spacing
+    # Clean spaces inside lines
 
-    text = re.sub(r'(\w)\s(?=\w\s)', r'\1', text)
+    lines = text.split("\n")
 
-    return text
-
-
-# =========================
-# BASIC CHUNKING
-# =========================
-
-def basic_chunking(text, chunk_size=500):
-
-    chunks = []
-
-    start = 0
-
-    while start < len(text):
-
-        end = start + chunk_size
-
-        chunk = text[start:end]
-
-        chunks.append(chunk)
-
-        start += chunk_size
-
-    return chunks
-
-
-# =========================
-# MEDIUM CHUNKING
-# CLEAN + OVERLAP
-# =========================
-
-def medium_chunking(text, chunk_size=500, overlap=100):
-
-    chunks = []
-
-    start = 0
-
-    while start < len(text):
-
-        end = start + chunk_size
-
-        chunk = text[start:end]
-
-        chunks.append(chunk)
-
-        start += chunk_size - overlap
-
-    return chunks
-
-
-# =========================
-# DETECT HEADINGS
-# =========================
-
-def detect_headings(text):
-
-    lines = text.split(".")
-
-    headings = []
+    cleaned_lines = []
 
     for line in lines:
 
-        line = line.strip()
+        # Remove excessive spaces
+        line = " ".join(line.split())
 
-        if len(line) < 60 and len(line.split()) <= 8:
+        cleaned_lines.append(line)
 
-            headings.append(line)
+    # Rebuild text with preserved paragraphs
 
-    return headings
+    cleaned_text = "\n".join(cleaned_lines)
 
+    return cleaned_text
 
-# =========================
-# HIGH CHUNKING
-# METADATA-AWARE
-# =========================
-
-def high_chunking(text, chunk_size=500, overlap=100):
-
-    chunks = []
-
-    headings = detect_headings(text)
-
-    current_heading = "General Section"
-
-    start = 0
-
-    heading_index = 0
-
-    while start < len(text):
-
-        end = start + chunk_size
-
-        chunk_content = text[start:end]
-
-        # Assign heading progressively
-
-        if heading_index < len(headings):
-
-            current_heading = headings[heading_index]
-
-            heading_index += 1
-
-        chunk = f"""
-
-Document Section:
-{current_heading}
-
-Content:
-{chunk_content}
-
-"""
-
-        chunks.append(chunk)
-
-        start += chunk_size - overlap
-
-    return chunks
 
 # =========================
 # GENERATE EMBEDDINGS
@@ -176,6 +77,8 @@ def generate_embeddings(chunks):
     embeddings = embedding_model.encode(chunks)
 
     return embeddings
+
+
 # =========================
 # CREATE FAISS INDEX
 # =========================
@@ -192,8 +95,10 @@ def create_faiss_index(embeddings):
 
     return index
 
+
 # =========================
 # SEARCH SIMILAR CHUNKS
+# Metadata-aware retrieval
 # =========================
 
 def search_similar_chunks(
@@ -214,12 +119,42 @@ def search_similar_chunks(
         top_k
     )
 
-    # Retrieve chunks
-
     retrieved_chunks = []
 
     for idx in indices[0]:
 
-        retrieved_chunks.append(chunks[idx])
+        chunk = chunks[idx]
+
+        # High mode metadata chunk
+
+        if isinstance(chunk, dict):
+
+            retrieved_chunks.append({
+
+                "chunk_id": chunk["chunk_id"],
+
+                "document": chunk["document"],
+
+                "section": chunk["section"],
+
+                "content": chunk["content"]
+
+            })
+
+        # Basic / Medium text chunk
+
+        else:
+
+            retrieved_chunks.append({
+
+                "chunk_id": None,
+
+                "document": None,
+
+                "section": None,
+
+                "content": chunk
+
+            })
 
     return retrieved_chunks

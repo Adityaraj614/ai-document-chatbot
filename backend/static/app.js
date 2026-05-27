@@ -63,6 +63,10 @@ if (studyUploadBox) {
 
         formData.append("file", file);
 
+        // Send retrieval mode to backend
+
+        formData.append("mode", selectedMode);
+
         try {
 
             const response = await fetch("/upload-study-pdf", {
@@ -373,13 +377,51 @@ if (askButton) {
 
             }
 
-            // Render answer
+            let finalAnswer = data.answer;
+
+            // =========================
+            // ADD SOURCES
+            // =========================
+
+            if (data.sources && data.sources.length > 0) {
+
+                finalAnswer += `
+
+                <div class="source-block">
+
+                    <div class="source-title">
+                        Retrieved From:
+                    </div>
+
+                `;
+
+                data.sources.forEach(source => {
+
+                    finalAnswer += `
+
+                    <div class="source-item">
+
+                        <strong>${source.document}</strong>
+                        <br>
+                        Section: ${source.section}
+
+                    </div>
+
+                    `;
+                });
+
+                finalAnswer += `</div>`;
+            }
+
+            // =========================
+            // RENDER MESSAGE
+            // =========================
 
             chatMessages.innerHTML += `
 
                 <div class="ai-message">
 
-                    ${data.answer.replace(/\n/g, "<br>")}
+                    ${finalAnswer}
 
                 </div>
 
