@@ -2,273 +2,118 @@
 
 {% block content %}
 
-<section class="study-page">
+<section class="study-layout">
 
-    <!-- LEFT PANEL -->
+    <aside class="study-sidebar">
 
-    <div class="study-sidebar">
-
-        <p class="section-label">
-            STUDY WORKSPACE
-        </p>
-
-        <h1>
-            Study Assistant
-        </h1>
-
-        <p class="study-description">
-            Upload PDFs and interact with structured AI-powered learning workflows.
-        </p>
-
-        <!-- Upload Box -->
-
-        <div class="upload-box" id="studyUploadBox">
-
-            <input type="file" id="studyFileInput" hidden>
-
-            <p class="upload-title">
-                Upload PDF
+        <div class="study-sidebar-header">
+            <p class="study-sidebar-label">Study Workspace</p>
+            <h2>Study Assistant</h2>
+            <p class="study-sidebar-description">
+                Upload PDFs and work with focused AI study tools built around your material.
             </p>
-
-            <p class="upload-subtext">
-                Drag & Drop study material
-            </p>
-
         </div>
 
-        <!-- Document Status -->
+        <div class="sidebar-section">
+            <p class="sidebar-section-label">Processing Mode</p>
 
-        <div class="document-status">
-
-            <p>
-                ✓ Document Ready
-            </p>
-
-            <span>
-                42 chunks indexed
-            </span>
-
-        </div>
-
-        <!-- Action Buttons -->
-
-        <div class="study-actions">
-
-            <button>
-                Generate Summary
-            </button>
-
-            <button>
-                Exam Notes
-            </button>
-
-            <button>
-                Beginner Mode
-            </button>
-
-            <button
-                class="action-button"
-                id="openChatWorkspace"
-            >
-
-                AI Chat
-
-            </button>
-
-        </div>
-
-        <!-- PROCESSING MODES -->
-
-        <div class="processing-modes">
-
-            <p>
-                Processing Mode
-            </p>
-
-            <div class="mode-buttons">
-
-                <button class="mode-btn active-mode"
-                        data-mode="basic">
-                    Basic
-                </button>
-
-                <button class="mode-btn"
-                        data-mode="medium">
-                    Medium
-                </button>
-
-                <button class="mode-btn"
-                        data-mode="high">
-
-                    High
-
-                </button>
-
+            <div class="mode-options">
+                <button class="mode-btn active-mode" data-mode="basic">Basic</button>
+                <button class="mode-btn" data-mode="medium">Medium</button>
+                <button class="mode-btn" data-mode="high">High</button>
             </div>
-
         </div>
 
-    </div>
+        <div class="sidebar-section">
+            <p class="sidebar-section-label">Upload PDF</p>
 
-    <!-- MAIN WORKSPACE -->
-
-    <div
-        class="study-workspace"
-        id="documentWorkspace"
-    >
-
-        <!-- WORKSPACE HEADER -->
-
-        <div class="workspace-header">
-
-            <h2>
-                Document Workspace
-            </h2>
-
-            <p>
-                Structured contextual responses generated from uploaded material.
-            </p>
-
-        </div>
-
-        <!-- DOCUMENT PREVIEW -->
-
-        <div
-            class="document-preview-card"
-            id="documentPreviewCard"
-        >
-
-            <h3>
-                Extracted Document Preview
-            </h3>
-
-            <div id="documentPreview">
-
-                Document preview will appear after upload.
-
+            <div class="study-upload-box" id="studyUploadBox">
+                <p class="upload-title">Upload PDF</p>
+                <p class="upload-subtext">Choose a study document</p>
             </div>
-
-        </div>
-
-        <!-- PROCESSING INSIGHTS -->
-
-        <div
-            class="processing-insights"
-            id="processingInsights"
-        >
-
-            <h3>
-                Processing Insights
-            </h3>
-
-            <div class="insight-grid">
-
-                <div class="insight-card">
-
-                    <span>
-                        MODE
-                    </span>
-
-                    <h4 id="modeValue">
-                        Awaiting Processing
-                    </h4>
-
-                </div>
-
-                <div class="insight-card">
-
-                    <span>
-                        CHUNKS
-                    </span>
-
-                    <h4 id="chunkValue">
-                        —
-                    </h4>
-
-                </div>
-
-                <div class="insight-card">
-
-                    <span>
-                        STRATEGY
-                    </span>
-
-                    <h4 id="strategyValue">
-                        —
-                    </h4>
-
-                </div>
-
-                <div class="insight-card">
-
-                    <span>
-                        EMBEDDINGS
-                    </span>
-
-                    <h4 id="embeddingValue">
-                        Pending
-                    </h4>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- ================================= -->
-    <!-- AI CHAT WORKSPACE -->
-    <!-- ================================= -->
-
-    <div
-        class="chat-workspace hidden"
-        id="chatWorkspace"
-    >
-
-        <button
-            class="back-workspace-button"
-            id="backToWorkspace"
-        >
-
-            ← Back to Workspace
-
-        </button>
-
-        <!-- CHAT MESSAGES -->
-
-        <div
-            class="chat-messages"
-            id="chatMessages"
-        >
-
-            <div class="ai-message">
-
-                AI workspace ready.
-
-            </div>
-
-        </div>
-
-        <!-- CHAT INPUT -->
-
-        <div class="chat-input-container">
 
             <input
-                type="text"
-                id="questionInput"
-                placeholder="Ask anything about the uploaded document..."
+                type="file"
+                id="studyFileInput"
+                accept=".pdf"
+                hidden
             >
-
-            <button id="askButton">
-
-                Ask AI
-
-            </button>
-
         </div>
 
-    </div>
+        <div class="sidebar-section">
+            <p class="sidebar-section-label">Document Status</p>
+
+            <div class="document-status" id="documentStatus">
+                <p>No document uploaded</p>
+                <span>Upload a PDF to begin</span>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <p class="sidebar-section-label">Features</p>
+
+            <div class="feature-actions">
+                <button class="feature-btn" data-workspace="chat">AI Chat</button>
+                <button class="feature-btn" data-workspace="summary">Generate Summary</button>
+                <button class="feature-btn" data-workspace="exam">Exam Notes</button>
+                <button class="feature-btn" data-workspace="beginner">Beginner Mode</button>
+            </div>
+        </div>
+
+    </aside>
+
+    <div class="study-divider"></div>
+
+    <main class="workspace-area">
+
+        <section class="workspace-header">
+            <p class="workspace-label">Document Workspace</p>
+            <h1>Read, reason, and study from one focused space.</h1>
+            <p>
+                Your document preview and processing context stay organized here while the sidebar remains available for actions.
+            </p>
+        </section>
+
+        <section class="workspace-content">
+
+            <article class="document-preview" id="documentPreviewCard">
+                <p class="workspace-section-label">Document Preview</p>
+                <h2>Extracted Document Preview</h2>
+
+                <div id="documentPreview" class="preview-content">
+                    Upload a PDF to begin reading your extracted document content.
+                </div>
+            </article>
+
+            <section class="processing-insights" id="processingInsights">
+                <p class="workspace-section-label">Processing Insights</p>
+
+                <div class="insight-grid">
+                    <div class="insight-item">
+                        <span>Mode</span>
+                        <strong>Awaiting Processing</strong>
+                    </div>
+
+                    <div class="insight-item">
+                        <span>Chunks</span>
+                        <strong>-</strong>
+                    </div>
+
+                    <div class="insight-item">
+                        <span>Strategy</span>
+                        <strong>-</strong>
+                    </div>
+
+                    <div class="insight-item">
+                        <span>Embeddings</span>
+                        <strong>Pending</strong>
+                    </div>
+                </div>
+            </section>
+
+        </section>
+
+    </main>
 
 </section>
 

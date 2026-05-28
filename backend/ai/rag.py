@@ -3,7 +3,7 @@ import re
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
-
+import torch
 
 # =========================
 # EMBEDDING MODEL
@@ -11,7 +11,7 @@ import numpy as np
 
 embedding_model = SentenceTransformer(
     "all-MiniLM-L6-v2",
-    device="cuda"
+    device="cuda" if torch.cuda.is_available() else "cpu"
 )
 
 # =========================

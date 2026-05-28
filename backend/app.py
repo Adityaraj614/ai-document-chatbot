@@ -3,10 +3,16 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import UploadFile, File, Form
-from torch import mode
-from ai.llm import generate_rag_response
+
+from ai.llm import (
+    generate_rag_response,
+    generate_summary,
+    generate_exam_notes,
+    generate_beginner_mode
+)
 import shutil
 import os
+import json
 
 from ai.rag import (
     extract_text_from_pdf,
@@ -26,17 +32,22 @@ from ai.chunking.high_chunker import high_chunking
 app = FastAPI()
 
 # =========================
+# STATIC FILES
+# =========================
+
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
+
+# =========================
 # TEMP RAG STORAGE
 # =========================
 
 stored_chunks = []
 
 stored_index = None
-# =========================
-# STATIC FILES
-# =========================
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # =========================
 # TEMPLATES
@@ -254,7 +265,7 @@ async def ask_question(request: Request):
 
     # High Mode / Metadata Chunk
 
-        if chunk["section"]:
+        if isinstance(chunk, dict) and chunk.get("section"):
 
             formatted_chunk = f"""
 
@@ -297,13 +308,17 @@ async def ask_question(request: Request):
 
     for chunk in retrieved_chunks:
 
-        if chunk["section"]:
+        if isinstance(chunk, dict) and chunk.get("section"):
 
             sources.append({
 
                 "document": chunk["document"],
 
-                "section": chunk["section"]
+                "section": chunk["section"],
+
+                "chunk": chunk.get("subsection"),
+
+                "preview": chunk.get("content", "")[:500]
 
             })
 
@@ -317,7 +332,8 @@ async def ask_question(request: Request):
 
         key = (
             source["document"],
-            source["section"]
+            source["section"],
+            source.get("chunk")
         )
 
         if key not in seen:
@@ -336,6 +352,196 @@ async def ask_question(request: Request):
 
         "sources": unique_sources
 
+    }
+
+# =========================
+# GENERATE SUMMARY
+# =========================
+
+@app.post("/generate-summary")
+
+async def generate_ai_summary():
+
+    global stored_chunks
+
+    # No uploaded document
+
+    if not stored_chunks:
+
+        return {
+            "error": "No document uploaded"
+        }
+
+    # =========================
+    # BUILD SUMMARY CONTEXT
+    # =========================
+
+    summary_parts = []
+
+    for chunk in stored_chunks[:10]:
+
+        # High Mode metadata chunk
+
+        if isinstance(chunk, dict):
+
+            summary_parts.append(
+                chunk["content"]
+            )
+
+        # Basic / Medium chunk
+
+        else:
+
+            summary_parts.append(chunk)
+
+    # Merge context
+
+    context = "\n\n".join(summary_parts)
+
+    # =========================
+    # GENERATE SUMMARY
+    # =========================
+
+    summary = generate_summary(context)
+
+    # =========================
+    # RETURN RESPONSE
+    # =========================
+
+    return {
+
+        "summary": summary
+
+    }
+
+# =========================
+# GENERATE EXAM NOTES
+# =========================
+
+@app.post("/generate-exam-notes")
+
+async def generate_ai_exam_notes():
+
+    global stored_chunks
+
+    if not stored_chunks:
+
+        return {
+            "error": "No document uploaded"
+        }
+
+    note_parts = []
+
+    for chunk in stored_chunks[:12]:
+
+        if isinstance(chunk, dict):
+
+            note_parts.append(
+                chunk["content"]
+            )
+
+        else:
+
+            note_parts.append(chunk)
+
+    context = "\n\n".join(note_parts)
+
+    raw_notes = generate_exam_notes(context)
+
+    try:
+
+        notes = json.loads(raw_notes)
+
+    except json.JSONDecodeError:
+
+        start = raw_notes.find("{")
+        end = raw_notes.rfind("}") + 1
+
+        if start >= 0 and end > start:
+
+            try:
+
+                notes = json.loads(raw_notes[start:end])
+
+            except json.JSONDecodeError:
+
+                return {
+                    "error": "Unable to format exam notes"
+                }
+
+        else:
+
+            return {
+                "error": "Unable to format exam notes"
+            }
+
+    return {
+        "notes": notes
+    }
+
+# =========================
+# GENERATE BEGINNER MODE
+# =========================
+
+@app.post("/generate-beginner-mode")
+
+async def generate_ai_beginner_mode():
+
+    global stored_chunks
+
+    if not stored_chunks:
+
+        return {
+            "error": "No document uploaded"
+        }
+
+    learning_parts = []
+
+    for chunk in stored_chunks[:10]:
+
+        if isinstance(chunk, dict):
+
+            learning_parts.append(
+                chunk["content"]
+            )
+
+        else:
+
+            learning_parts.append(chunk)
+
+    context = "\n\n".join(learning_parts)
+
+    raw_guide = generate_beginner_mode(context)
+
+    try:
+
+        guide = json.loads(raw_guide)
+
+    except json.JSONDecodeError:
+
+        start = raw_guide.find("{")
+        end = raw_guide.rfind("}") + 1
+
+        if start >= 0 and end > start:
+
+            try:
+
+                guide = json.loads(raw_guide[start:end])
+
+            except json.JSONDecodeError:
+
+                return {
+                    "error": "Unable to format beginner guide"
+                }
+
+        else:
+
+            return {
+                "error": "Unable to format beginner guide"
+            }
+
+    return {
+        "guide": guide
     }
 
 # =========================
