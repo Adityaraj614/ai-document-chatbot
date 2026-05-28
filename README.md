@@ -1,5 +1,3 @@
-##ai-document-chatbot
-
 # 🧠 CareerMind AI
 ### AI-Powered RAG-Based Study Assistant
 *Intelligent PDF learning through semantic retrieval and contextual AI interaction*
