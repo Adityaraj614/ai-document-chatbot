@@ -13,6 +13,9 @@ from ai.llm import (
 import shutil
 import os
 import json
+import uuid
+import faiss
+from datetime import datetime, timedelta, timezone
 
 from ai.rag import (
     extract_text_from_pdf,
@@ -41,13 +44,406 @@ app.mount(
     name="static"
 )
 
-# =========================
-# TEMP RAG STORAGE
-# =========================
+active_session_id = None
 
-stored_chunks = []
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SESSIONS_DIR = os.path.join(PROJECT_ROOT, "database", "sessions")
+SESSION_EXPIRY_HOURS = 2
 
-stored_index = None
+SESSION_CACHE_FILES = {
+    "summary": "summary.json",
+    "exam_notes": "exam_notes.json",
+    "beginner_mode": "beginner_mode.json"
+}
+
+os.makedirs(SESSIONS_DIR, exist_ok=True)
+
+
+def get_utc_now():
+
+    return datetime.now(timezone.utc)
+
+
+def parse_created_at(value):
+
+    if not value:
+        return None
+
+    try:
+        created_at = datetime.fromisoformat(value)
+
+        if created_at.tzinfo is None:
+            return created_at.replace(tzinfo=timezone.utc)
+
+        return created_at
+    except ValueError:
+        return None
+
+
+def is_valid_session_id(session_id):
+
+    if not session_id:
+        return False
+
+    try:
+        uuid.UUID(session_id)
+        return True
+    except ValueError:
+        return False
+
+
+def has_readable_text(items):
+
+    if not items:
+        return False
+
+    for item in items:
+
+        if isinstance(item, dict):
+            text = item.get("content", "")
+        else:
+            text = item
+
+        if str(text).strip():
+            return True
+
+    return False
+
+
+def cleanup_expired_sessions():
+
+    if not os.path.exists(SESSIONS_DIR):
+        return
+
+    expiry_cutoff = get_utc_now() - timedelta(hours=SESSION_EXPIRY_HOURS)
+
+    for session_id in os.listdir(SESSIONS_DIR):
+
+        session_path = os.path.join(SESSIONS_DIR, session_id)
+
+        if not os.path.isdir(session_path):
+            continue
+
+        metadata_path = os.path.join(session_path, "metadata.json")
+        should_delete = False
+
+        if os.path.exists(metadata_path):
+
+            try:
+                with open(metadata_path, "r", encoding="utf-8") as file:
+                    metadata = json.load(file)
+
+                created_at = parse_created_at(metadata.get("created_at"))
+                should_delete = not created_at or created_at < expiry_cutoff
+
+            except (OSError, json.JSONDecodeError):
+                should_delete = True
+
+        else:
+            should_delete = True
+
+        if should_delete:
+            shutil.rmtree(session_path, ignore_errors=True)
+
+
+def get_session_path(session_id=None):
+
+    target_session_id = session_id or active_session_id
+
+    if not is_valid_session_id(target_session_id):
+        return None
+
+    return os.path.join(SESSIONS_DIR, target_session_id)
+
+
+def load_session_metadata(session_id):
+
+    session_path = get_session_path(session_id)
+
+    if not session_path:
+        return None
+
+    metadata_path = os.path.join(session_path, "metadata.json")
+
+    if not os.path.exists(metadata_path):
+        return None
+
+    try:
+        with open(metadata_path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def get_latest_session_metadata():
+
+    if not os.path.exists(SESSIONS_DIR):
+        return None
+
+    latest_metadata = None
+    latest_created_at = None
+
+    for session_id in os.listdir(SESSIONS_DIR):
+
+        session_path = os.path.join(SESSIONS_DIR, session_id)
+
+        if not os.path.isdir(session_path):
+            continue
+
+        metadata = load_session_metadata(session_id)
+
+        if not metadata:
+            continue
+
+        created_at = parse_created_at(metadata.get("created_at"))
+
+        if not created_at:
+            continue
+
+        if latest_created_at is None or created_at > latest_created_at:
+            latest_created_at = created_at
+            latest_metadata = metadata
+
+    return latest_metadata
+
+
+def get_all_session_metadata():
+
+    if not os.path.exists(SESSIONS_DIR):
+        return []
+
+    sessions = []
+
+    for session_id in os.listdir(SESSIONS_DIR):
+
+        session_path = os.path.join(SESSIONS_DIR, session_id)
+
+        if not os.path.isdir(session_path):
+            continue
+
+        metadata = load_session_metadata(session_id)
+
+        if not metadata:
+            continue
+
+        sessions.append({
+            "session_id": metadata.get("session_id"),
+            "filename": metadata.get("filename"),
+            "processing_mode": metadata.get("processing_mode"),
+            "created_at": metadata.get("created_at")
+        })
+
+    return sorted(
+        sessions,
+        key=lambda session: session.get("created_at") or "",
+        reverse=True
+    )
+
+
+def get_session_file_path(session_id, filename):
+
+    session_path = get_session_path(session_id)
+
+    if not session_path:
+        return None
+
+    return os.path.join(session_path, filename)
+
+
+def save_chunks(session_id, chunks):
+
+    path = get_session_file_path(session_id, "chunks.json")
+
+    if not path:
+        return None
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(chunks, file, ensure_ascii=False, indent=2)
+
+    return path
+
+
+def load_chunks(session_id):
+
+    path = get_session_file_path(session_id, "chunks.json")
+
+    if not path or not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_faiss_index(session_id, index):
+
+    path = get_session_file_path(session_id, "faiss.index")
+
+    if not path:
+        return None
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    faiss.write_index(index, path)
+
+    return path
+
+
+def load_faiss_index(session_id):
+
+    path = get_session_file_path(session_id, "faiss.index")
+
+    if not path or not os.path.exists(path):
+        return None
+
+    try:
+        return faiss.read_index(path)
+    except RuntimeError:
+        return None
+
+
+def load_chat_history(session_id):
+
+    path = get_session_file_path(session_id, "chat_history.json")
+
+    if not path or not os.path.exists(path):
+        return []
+
+    try:
+        with open(path, "r", encoding="utf-8") as file:
+            history = json.load(file)
+
+        return history if isinstance(history, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def save_chat_history(session_id, history):
+
+    path = get_session_file_path(session_id, "chat_history.json")
+
+    if not path:
+        return
+
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    safe_history = []
+
+    for message in history:
+
+        if not isinstance(message, dict):
+            continue
+
+        role = message.get("role")
+        content = message.get("content")
+
+        if role not in {"user", "assistant"} or not content:
+            continue
+
+        safe_history.append({
+            "role": role,
+            "content": content
+        })
+
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(safe_history, file, ensure_ascii=False, indent=2)
+
+
+def create_study_session(
+    session_id,
+    filename,
+    processing_mode,
+    chunk_count,
+    strategy,
+    embedding_dimension,
+    preview,
+    chunks_path,
+    faiss_index_path
+):
+
+    session_path = get_session_path(session_id)
+
+    os.makedirs(session_path, exist_ok=True)
+
+    metadata = {
+        "session_id": session_id,
+        "filename": filename,
+        "processing_mode": processing_mode,
+        "chunk_count": chunk_count,
+        "strategy": strategy,
+        "embedding_dimension": embedding_dimension,
+        "preview": preview,
+        "chunks_path": chunks_path,
+        "faiss_index_path": faiss_index_path,
+        "created_at": get_utc_now().isoformat()
+    }
+
+    save_session_json(session_id, "metadata.json", metadata)
+
+    return session_id
+
+
+def get_cache_path(cache_name, session_id=None):
+
+    session_path = get_session_path(session_id)
+
+    if not session_path:
+        return None
+
+    filename = SESSION_CACHE_FILES.get(cache_name)
+
+    if not filename:
+        return None
+
+    return os.path.join(session_path, filename)
+
+
+def load_cache(cache_name, session_id=None):
+
+    cache_path = get_cache_path(cache_name, session_id)
+
+    if not cache_path or not os.path.exists(cache_path):
+        return None
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as file:
+            return json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def save_cache(cache_name, data, session_id=None):
+
+    cache_path = get_cache_path(cache_name, session_id)
+
+    if not cache_path:
+        return
+
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+
+    with open(cache_path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+
+
+def save_session_json(session_id, filename, data):
+
+    session_path = get_session_path(session_id)
+
+    os.makedirs(session_path, exist_ok=True)
+
+    path = os.path.join(session_path, filename)
+
+    with open(path, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=2)
+
+
+@app.on_event("startup")
+async def startup_cleanup():
+
+    cleanup_expired_sessions()
 
 # =========================
 # TEMPLATES
@@ -113,6 +509,8 @@ async def upload_study_pdf(
     mode: str = Form("basic")
 ):
 
+    cleanup_expired_sessions()
+
     upload_path = f"uploads/{file.filename}"
 
     # Save PDF
@@ -175,6 +573,15 @@ async def upload_study_pdf(
         return {
             "error": "Invalid retrieval mode selected"
         }
+
+    if not has_readable_text(chunks):
+
+        return {
+            "error": "No readable text found in PDF"
+        }
+
+    session_id = str(uuid.uuid4())
+    chunks_path = save_chunks(session_id, chunks)
     
     # =========================
     # PREPARE TEXT FOR EMBEDDINGS
@@ -193,6 +600,12 @@ async def upload_study_pdf(
 
         embedding_texts = chunks
 
+    if not has_readable_text(embedding_texts):
+
+        return {
+            "error": "No readable text found in PDF"
+        }
+
     # =========================
     # GENERATE EMBEDDINGS
     # =========================
@@ -201,6 +614,11 @@ async def upload_study_pdf(
         embedding_texts
     )
 
+    if len(embeddings) == 0:
+
+        return {
+            "error": "No readable text found in PDF"
+        }
 
     # Create FAISS index
 
@@ -208,11 +626,21 @@ async def upload_study_pdf(
 
     # Store globally
 
-    global stored_chunks
-    global stored_index
+    global active_session_id
 
-    stored_chunks = chunks
-    stored_index = index
+    faiss_index_path = save_faiss_index(session_id, index)
+
+    active_session_id = create_study_session(
+        session_id=session_id,
+        filename=file.filename,
+        processing_mode=mode,
+        chunk_count=len(chunks),
+        strategy=strategy,
+        embedding_dimension=len(embeddings[0]),
+        preview=preview,
+        chunks_path=chunks_path,
+        faiss_index_path=faiss_index_path
+    )
 
     # Response
 
@@ -231,6 +659,112 @@ async def upload_study_pdf(
         "strategy": strategy,
 
         "embedding_dimension": len(embeddings[0]),
+
+        "session_id": active_session_id
+    }
+
+# =========================
+# SESSION CACHE LOOKUP
+# =========================
+
+@app.get("/session-cache/{cache_name}")
+async def get_session_cache(cache_name: str, session_id: str = None):
+
+    cleanup_expired_sessions()
+
+    if not is_valid_session_id(session_id):
+        return {
+            "exists": False
+        }
+
+    cached_data = load_cache(cache_name, session_id)
+
+    if not cached_data:
+        return {
+            "exists": False,
+            "session_id": session_id
+        }
+
+    return {
+        "exists": True,
+        "session_id": session_id,
+        **cached_data
+    }
+
+# =========================
+# RECENT SESSIONS
+# =========================
+
+@app.get("/sessions")
+async def get_sessions():
+
+    cleanup_expired_sessions()
+
+    return {
+        "sessions": get_all_session_metadata()
+    }
+
+# =========================
+# SESSION METADATA
+# =========================
+
+@app.get("/session-metadata")
+async def get_session_metadata(session_id: str = None):
+
+    cleanup_expired_sessions()
+
+    global active_session_id
+
+    metadata = None
+    requested_session_id = session_id
+
+    if is_valid_session_id(session_id):
+        metadata = load_session_metadata(session_id)
+
+    if not metadata and not requested_session_id:
+        metadata = load_session_metadata(active_session_id)
+
+    if not metadata:
+        metadata = get_latest_session_metadata()
+
+    if not metadata:
+        return {
+            "exists": False
+        }
+
+    active_session_id = metadata.get("session_id")
+
+    return {
+        "exists": True,
+        "metadata": metadata
+    }
+
+# =========================
+# CHAT HISTORY
+# =========================
+
+@app.get("/chat-history")
+async def get_chat_history(session_id: str = None):
+
+    cleanup_expired_sessions()
+
+    if not is_valid_session_id(session_id):
+        return {
+            "exists": False,
+            "history": []
+        }
+
+    metadata = load_session_metadata(session_id)
+
+    if not metadata:
+        return {
+            "exists": False,
+            "history": []
+        }
+
+    return {
+        "exists": True,
+        "history": load_chat_history(session_id)
     }
 
 # =========================
@@ -241,9 +775,33 @@ async def upload_study_pdf(
 
 async def ask_question(request: Request):
 
+    cleanup_expired_sessions()
+
     data = await request.json()
 
     question = data.get("question")
+    session_id = data.get("session_id")
+
+    if not question:
+
+        return {
+            "error": "Question is required"
+        }
+
+    if not is_valid_session_id(session_id):
+
+        return {
+            "error": "No document session found"
+        }
+
+    chunks = load_chunks(session_id)
+    index = load_faiss_index(session_id)
+
+    if not chunks or index is None:
+
+        return {
+            "error": "Document session is unavailable"
+        }
 
     # =========================
     # RETRIEVE RELEVANT CHUNKS
@@ -251,8 +809,8 @@ async def ask_question(request: Request):
 
     retrieved_chunks = search_similar_chunks(
         query=question,
-        chunks=stored_chunks,
-        index=stored_index
+        chunks=chunks,
+        index=index
     )
 
     # =========================
@@ -342,6 +900,19 @@ async def ask_question(request: Request):
 
             unique_sources.append(source)
 
+    chat_history = load_chat_history(session_id)
+    chat_history.extend([
+        {
+            "role": "user",
+            "content": question
+        },
+        {
+            "role": "assistant",
+            "content": final_answer
+        }
+    ])
+    save_chat_history(session_id, chat_history)
+
     # =========================
     # FINAL RESPONSE
     # =========================
@@ -360,14 +931,29 @@ async def ask_question(request: Request):
 
 @app.post("/generate-summary")
 
-async def generate_ai_summary():
+async def generate_ai_summary(request: Request):
 
-    global stored_chunks
+    cleanup_expired_sessions()
+
+    data = await request.json()
+    session_id = data.get("session_id")
+
+    if not is_valid_session_id(session_id):
+
+        return {
+            "error": "No document session found"
+        }
+
+    cached_summary = load_cache("summary", session_id)
+
+    if cached_summary:
+        return cached_summary
+
+    chunks = load_chunks(session_id)
 
     # No uploaded document
 
-    if not stored_chunks:
-
+    if not chunks:
         return {
             "error": "No document uploaded"
         }
@@ -378,7 +964,7 @@ async def generate_ai_summary():
 
     summary_parts = []
 
-    for chunk in stored_chunks[:10]:
+    for chunk in chunks[:10]:
 
         # High Mode metadata chunk
 
@@ -404,6 +990,14 @@ async def generate_ai_summary():
 
     summary = generate_summary(context)
 
+    save_cache(
+        "summary",
+        {
+            "summary": summary
+        },
+        session_id
+    )
+
     # =========================
     # RETURN RESPONSE
     # =========================
@@ -420,11 +1014,27 @@ async def generate_ai_summary():
 
 @app.post("/generate-exam-notes")
 
-async def generate_ai_exam_notes():
+async def generate_ai_exam_notes(request: Request):
 
-    global stored_chunks
+    cleanup_expired_sessions()
 
-    if not stored_chunks:
+    data = await request.json()
+    session_id = data.get("session_id")
+
+    if not is_valid_session_id(session_id):
+
+        return {
+            "error": "No document session found"
+        }
+
+    cached_notes = load_cache("exam_notes", session_id)
+
+    if cached_notes:
+        return cached_notes
+
+    chunks = load_chunks(session_id)
+
+    if not chunks:
 
         return {
             "error": "No document uploaded"
@@ -432,7 +1042,7 @@ async def generate_ai_exam_notes():
 
     note_parts = []
 
-    for chunk in stored_chunks[:12]:
+    for chunk in chunks[:12]:
 
         if isinstance(chunk, dict):
 
@@ -475,9 +1085,13 @@ async def generate_ai_exam_notes():
                 "error": "Unable to format exam notes"
             }
 
-    return {
+    response = {
         "notes": notes
     }
+
+    save_cache("exam_notes", response, session_id)
+
+    return response
 
 # =========================
 # GENERATE BEGINNER MODE
@@ -485,11 +1099,27 @@ async def generate_ai_exam_notes():
 
 @app.post("/generate-beginner-mode")
 
-async def generate_ai_beginner_mode():
+async def generate_ai_beginner_mode(request: Request):
 
-    global stored_chunks
+    cleanup_expired_sessions()
 
-    if not stored_chunks:
+    data = await request.json()
+    session_id = data.get("session_id")
+
+    if not is_valid_session_id(session_id):
+
+        return {
+            "error": "No document session found"
+        }
+
+    cached_guide = load_cache("beginner_mode", session_id)
+
+    if cached_guide:
+        return cached_guide
+
+    chunks = load_chunks(session_id)
+
+    if not chunks:
 
         return {
             "error": "No document uploaded"
@@ -497,7 +1127,7 @@ async def generate_ai_beginner_mode():
 
     learning_parts = []
 
-    for chunk in stored_chunks[:10]:
+    for chunk in chunks[:10]:
 
         if isinstance(chunk, dict):
 
@@ -540,9 +1170,13 @@ async def generate_ai_beginner_mode():
                 "error": "Unable to format beginner guide"
             }
 
-    return {
+    response = {
         "guide": guide
     }
+
+    save_cache("beginner_mode", response, session_id)
+
+    return response
 
 # =========================
 # RESUME PDF UPLOAD

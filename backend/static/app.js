@@ -9,10 +9,455 @@ let activeWorkspace = "document";
 let studyDocumentState = {
     documentName: "No document uploaded",
     preview: "Upload a PDF to begin reading your extracted document content.",
-    insights: null
+    insights: null,
+    sessionId: null
 };
 const chatHistory = [];
 let latestSummaryText = "";
+const SESSION_STORAGE_KEY = "careermind_session_id";
+const NEW_CHAT_STORAGE_VALUE = "new_chat";
+
+const getCachedStudyContent = async cacheName => {
+
+    if (!studyDocumentState.sessionId) {
+
+        return {
+            exists: false
+        };
+    }
+
+    const params =
+        new URLSearchParams({
+            session_id: studyDocumentState.sessionId
+        });
+
+    const response =
+        await fetch(`/session-cache/${cacheName}?${params.toString()}`);
+
+    return response.json();
+};
+
+const loadSessionChatHistory = async sessionId => {
+
+    if (!sessionId) return;
+
+    try {
+
+        const params =
+            new URLSearchParams({
+                session_id: sessionId
+            });
+
+        const response =
+            await fetch(`/chat-history?${params.toString()}`);
+
+        const data =
+            await response.json();
+
+        chatHistory.splice(
+            0,
+            chatHistory.length,
+            ...(Array.isArray(data.history) ? data.history : [])
+        );
+
+    } catch (error) {
+
+        console.error(error);
+    }
+};
+
+const getChunkLabel = chunkCount =>
+    `${chunkCount} ${chunkCount === 1 ? "chunk" : "chunks"}`;
+
+const updateModeButtons = mode => {
+
+    if (!mode) return;
+
+    selectedMode = mode;
+
+    modeButtons.forEach(button => {
+
+        button.classList.toggle(
+            "active-mode",
+            button.dataset.mode === mode
+        );
+    });
+};
+
+const setModeButtonsLocked = locked => {
+
+    modeButtons.forEach(button => {
+        button.disabled = locked;
+    });
+};
+
+const setStudyDocumentStateFromSession = ({
+    session_id,
+    filename,
+    processing_mode,
+    chunk_count,
+    strategy,
+    embedding_dimension,
+    preview
+}) => {
+
+    studyDocumentState = {
+        documentName: filename || "Uploaded document",
+        preview:
+            preview ||
+            studyDocumentState.preview ||
+            "Upload a PDF to begin reading your extracted document content.",
+        insights: {
+            mode: processing_mode,
+            chunkCount: chunk_count,
+            strategy,
+            embeddingDimension: embedding_dimension
+        },
+        sessionId: session_id || null
+    };
+
+    updateModeButtons(processing_mode);
+};
+
+const restoreStudySidebarState = () => {
+
+    const insights =
+        studyDocumentState.insights;
+
+    if (!studyDocumentState.sessionId || !insights) return;
+
+    const chunkLabel =
+        getChunkLabel(insights.chunkCount);
+
+    const uploadBox =
+        document.getElementById("studyUploadBox");
+
+    if (uploadBox) {
+
+        uploadBox.innerHTML = `
+            <p class="upload-title">✓ ${studyDocumentState.documentName}</p>
+            <p class="upload-subtext">
+                ${chunkLabel} processed successfully
+            </p>
+        `;
+    }
+
+    const documentStatus =
+        document.getElementById("documentStatus");
+
+    if (documentStatus) {
+
+        documentStatus.innerHTML = `
+            <p>Document Ready</p>
+            <span>
+                ${chunkLabel} indexed
+            </span>
+        `;
+    }
+};
+
+const setFeatureButtonsEnabled = enabled => {
+
+    document
+        .querySelectorAll(".feature-btn")
+        .forEach(button => {
+            button.disabled = !enabled;
+        });
+};
+
+const resetStudySidebarState = () => {
+
+    const uploadBox =
+        document.getElementById("studyUploadBox");
+
+    if (uploadBox) {
+
+        uploadBox.innerHTML = `
+            <p class="upload-title">Upload PDF</p>
+            <p class="upload-subtext">Choose a study document</p>
+        `;
+    }
+
+    const documentStatus =
+        document.getElementById("documentStatus");
+
+    if (documentStatus) {
+
+        documentStatus.innerHTML = `
+            <p>No document uploaded</p>
+            <span>Upload a PDF to begin</span>
+        `;
+    }
+};
+
+const clearActiveSessionHighlight = () => {
+
+    document
+        .querySelectorAll(".session-btn")
+        .forEach(button => {
+            button.classList.remove("active-session");
+        });
+};
+
+const updateActiveSessionHighlight = () => {
+
+    document
+        .querySelectorAll(".session-btn")
+        .forEach(button => {
+            button.classList.toggle(
+                "active-session",
+                button.dataset.sessionId === studyDocumentState.sessionId
+            );
+        });
+};
+
+const formatSessionDate = value => {
+
+    if (!value) return "";
+
+    const date =
+        new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "";
+
+    return date.toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
+};
+
+const renderRecentSessions = sessions => {
+
+    const list =
+        document.getElementById("recentSessionsList");
+
+    if (!list) return;
+
+    list.replaceChildren();
+
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+
+        const empty =
+            document.createElement("p");
+
+        empty.className = "recent-session-empty";
+        empty.textContent = "No recent sessions";
+
+        list.appendChild(empty);
+        return;
+    }
+
+    sessions.forEach(session => {
+
+        const button =
+            document.createElement("button");
+
+        button.className = "session-btn";
+        button.type = "button";
+        button.dataset.sessionId = session.session_id || "";
+
+        const title =
+            document.createElement("span");
+
+        title.textContent =
+            session.filename || "Untitled document";
+
+        const meta =
+            document.createElement("small");
+
+        meta.textContent = [
+            session.processing_mode
+                ? session.processing_mode.toUpperCase()
+                : "",
+            formatSessionDate(session.created_at)
+        ].filter(Boolean).join(" · ");
+
+        button.append(title, meta);
+
+        if (
+            button.dataset.sessionId === studyDocumentState.sessionId
+        ) {
+            const badge =
+                document.createElement("span");
+
+            badge.className = "active-session-badge";
+            badge.textContent = "ACTIVE";
+
+            button.appendChild(badge);
+        }
+
+        list.appendChild(button);
+    });
+
+    updateActiveSessionHighlight();
+};
+
+const loadRecentSessions = async () => {
+
+    try {
+
+        const response =
+            await fetch("/sessions");
+
+        const data =
+            await response.json();
+
+        renderRecentSessions(data.sessions || []);
+
+    } catch (error) {
+
+        console.error(error);
+    }
+};
+
+const loadGeneratedWorkspaceCachesForActiveSession = async () => {
+
+    latestSummaryText = "";
+
+    if (!studyDocumentState.sessionId) return;
+
+    try {
+
+        const [summaryData] =
+            await Promise.all([
+                getCachedStudyContent("summary"),
+                getCachedStudyContent("exam_notes"),
+                getCachedStudyContent("beginner_mode")
+            ]);
+
+        latestSummaryText =
+            summaryData.exists
+                ? summaryData.summary || ""
+                : "";
+
+    } catch (error) {
+
+        latestSummaryText = "";
+        console.error(error);
+    }
+};
+
+const restoreStudySession = async () => {
+
+    try {
+
+        const storedSessionId =
+            localStorage.getItem(SESSION_STORAGE_KEY);
+
+        if (storedSessionId === NEW_CHAT_STORAGE_VALUE) return;
+
+        const params =
+            new URLSearchParams();
+
+        if (storedSessionId) {
+
+            params.set("session_id", storedSessionId);
+        }
+
+        const metadataUrl =
+            params.toString()
+                ? `/session-metadata?${params.toString()}`
+                : "/session-metadata";
+
+        const response =
+            await fetch(metadataUrl);
+
+        const data =
+            await response.json();
+
+        if (!data.exists || !data.metadata) return;
+
+        setStudyDocumentStateFromSession(data.metadata);
+        localStorage.setItem(
+            SESSION_STORAGE_KEY,
+            studyDocumentState.sessionId
+        );
+        await loadGeneratedWorkspaceCachesForActiveSession();
+        await loadSessionChatHistory(studyDocumentState.sessionId);
+        restoreStudySidebarState();
+        setFeatureButtonsEnabled(true);
+        updateActiveSessionHighlight();
+
+    } catch (error) {
+
+        console.error(error);
+    }
+};
+
+const resetStudyWorkspaceForNewChat = () => {
+
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+
+    studyDocumentState = {
+        documentName: "No document uploaded",
+        preview: "Upload a PDF to begin reading your extracted document content.",
+        insights: null,
+        sessionId: null
+    };
+
+    latestSummaryText = "";
+    selectedMode = "basic";
+
+    modeButtons.forEach(button => {
+
+        button.classList.toggle(
+            "active-mode",
+            button.dataset.mode === "basic"
+        );
+    });
+
+    setModeButtonsLocked(false);
+    resetChatWorkspaceForNewSession();
+    resetStudySidebarState();
+    clearActiveSessionHighlight();
+    setFeatureButtonsEnabled(false);
+
+    if (studyFileInput) {
+        studyFileInput.value = "";
+    }
+
+    renderDocumentWorkspace();
+};
+
+const loadStudySession = async sessionId => {
+
+    if (!sessionId) return;
+
+    try {
+
+        const params =
+            new URLSearchParams({
+                session_id: sessionId
+            });
+
+        const response =
+            await fetch(`/session-metadata?${params.toString()}`);
+
+        const data =
+            await response.json();
+
+        if (!data.exists || !data.metadata) return;
+
+        setStudyDocumentStateFromSession(data.metadata);
+        localStorage.setItem(
+            SESSION_STORAGE_KEY,
+            studyDocumentState.sessionId
+        );
+        await loadGeneratedWorkspaceCachesForActiveSession();
+        await loadSessionChatHistory(studyDocumentState.sessionId);
+        restoreStudySidebarState();
+        setFeatureButtonsEnabled(true);
+        setModeButtonsLocked(true);
+        updateActiveSessionHighlight();
+        renderDocumentWorkspace();
+
+    } catch (error) {
+
+        console.error(error);
+    }
+};
 
 // Mode Buttons
 
@@ -40,6 +485,26 @@ modeButtons.forEach(button => {
 
     });
 
+});
+
+document.addEventListener("click", event => {
+
+    const newChatButton =
+        event.target.closest("#newChatButton");
+
+    if (!newChatButton) return;
+
+    resetStudyWorkspaceForNewChat();
+});
+
+document.addEventListener("click", event => {
+
+    const sessionButton =
+        event.target.closest(".session-btn");
+
+    if (!sessionButton) return;
+
+    loadStudySession(sessionButton.dataset.sessionId);
 });
 // ====================
 // STUDY PDF UPLOAD
@@ -86,17 +551,37 @@ if (studyUploadBox) {
 
             const data = await response.json();
 
-            studyDocumentState = {
-                documentName: data.filename || "Uploaded document",
-                preview: data.preview || "",
-                insights: {
-                    mode: data.mode,
-                    chunkCount: data.chunk_count,
-                    strategy: data.strategy,
-                    embeddingDimension:
-                        data.embedding_dimension
-                }
-            };
+            if (data.error) {
+
+                studyUploadBox.innerHTML = `
+                    <p class="upload-title">Upload Failed</p>
+                    <p class="upload-subtext">${data.error}</p>
+                `;
+
+                return;
+            }
+
+            setStudyDocumentStateFromSession({
+                session_id: data.session_id,
+                filename: data.filename,
+                processing_mode: data.mode,
+                chunk_count: data.chunk_count,
+                strategy: data.strategy,
+                embedding_dimension:
+                    data.embedding_dimension,
+                preview: data.preview || ""
+            });
+
+            localStorage.setItem(
+                SESSION_STORAGE_KEY,
+                data.session_id
+            );
+            resetChatWorkspaceForNewSession();
+            latestSummaryText = "";
+            setFeatureButtonsEnabled(true);
+            setModeButtonsLocked(true);
+            await loadRecentSessions();
+            updateActiveSessionHighlight();
 
             // Update Upload Box
 
@@ -697,6 +1182,17 @@ const renderDocumentWorkspace = () => {
 
     if (!workspaceArea) return;
 
+    const activeSessionInfo = document.createElement("div");
+
+    activeSessionInfo.className = "active-session-info";
+
+    activeSessionInfo.innerHTML = `
+        <span>ACTIVE SESSION</span>
+        <strong>${studyDocumentState.documentName}</strong>
+    `;
+
+    workspaceArea.appendChild(activeSessionInfo);
+
     const content =
         document.createElement("section");
 
@@ -813,6 +1309,28 @@ const renderChatEmptyState = container => {
 const hideWorkspacePlaceholder = () => {
 
     removeWorkspaceNode("chatEmptyState");
+};
+
+const resetChatWorkspaceForNewSession = () => {
+
+    chatHistory.splice(0, chatHistory.length);
+
+    const questionInput =
+        document.getElementById("questionInput");
+
+    if (questionInput) {
+
+        questionInput.value = "";
+    }
+
+    const chatMessages =
+        document.getElementById("chatMessages");
+
+    if (chatMessages) {
+
+        chatMessages.replaceChildren();
+        renderChatEmptyState(chatMessages);
+    }
 };
 
 const renderChatWorkspace = () => {
@@ -974,14 +1492,33 @@ const renderSummaryWorkspace = async () => {
     const summaryContent =
         document.getElementById("summaryContent");
 
-    const loadingState =
-        renderSummaryLoadingState(summaryContent);
-
     try {
+
+        const cachedData =
+            await getCachedStudyContent("summary");
+
+        if (cachedData.exists) {
+
+            latestSummaryText =
+                cachedData.summary || "";
+
+            renderSummary(latestSummaryText);
+
+            return;
+        }
+
+        const loadingState =
+            renderSummaryLoadingState(summaryContent);
 
         const response =
             await fetch("/generate-summary", {
-                method: "POST"
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    session_id: studyDocumentState.sessionId
+                })
             });
 
         const data =
@@ -1010,10 +1547,7 @@ const renderSummaryWorkspace = async () => {
 
     } catch (error) {
 
-        if (loadingState) {
-
-            loadingState.remove();
-        }
+        removeWorkspaceNode("summaryLoadingState");
 
         renderErrorState(
             summaryContent,
@@ -1062,14 +1596,30 @@ const renderExamWorkspace = async () => {
 
     renderExamSnapshot(examContent);
 
-    const loadingState =
-        renderExamLoadingState(examContent);
-
     try {
+
+        const cachedData =
+            await getCachedStudyContent("exam_notes");
+
+        if (cachedData.exists) {
+
+            renderExamNotes(cachedData.notes);
+
+            return;
+        }
+
+        const loadingState =
+            renderExamLoadingState(examContent);
 
         const response =
             await fetch("/generate-exam-notes", {
-                method: "POST"
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    session_id: studyDocumentState.sessionId
+                })
             });
 
         const data =
@@ -1094,10 +1644,7 @@ const renderExamWorkspace = async () => {
 
     } catch (error) {
 
-        if (loadingState) {
-
-            loadingState.remove();
-        }
+        removeWorkspaceNode("examLoadingState");
 
         renderExamErrorState(
             examContent,
@@ -1129,14 +1676,30 @@ const renderBeginnerWorkspace = async () => {
         getFallbackBeginnerGuide()
     );
 
-    const loadingState =
-        renderBeginnerLoadingState(beginnerContent);
-
     try {
+
+        const cachedData =
+            await getCachedStudyContent("beginner_mode");
+
+        if (cachedData.exists) {
+
+            renderBeginnerContent(cachedData.guide);
+
+            return;
+        }
+
+        const loadingState =
+            renderBeginnerLoadingState(beginnerContent);
 
         const response =
             await fetch("/generate-beginner-mode", {
-                method: "POST"
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    session_id: studyDocumentState.sessionId
+                })
             });
 
         const data =
@@ -1160,10 +1723,7 @@ const renderBeginnerWorkspace = async () => {
 
     } catch (error) {
 
-        if (loadingState) {
-
-            loadingState.remove();
-        }
+        removeWorkspaceNode("beginnerLoadingState");
 
         renderBeginnerContent(
             getFallbackBeginnerGuide()
@@ -2893,7 +3453,8 @@ const handleAskQuestion = async () => {
                     },
 
                     body: JSON.stringify({
-                        question: query
+                        question: query,
+                        session_id: studyDocumentState.sessionId
                     })
 
                 }
@@ -2964,6 +3525,16 @@ document.addEventListener("keydown", event => {
     handleAskQuestion();
 });
 
-renderDocumentWorkspace();
+const initializeStudyWorkspace = async () => {
+
+    setFeatureButtonsEnabled(false);
+    setModeButtonsLocked(false);
+    clearActiveSessionHighlight();
+    await loadRecentSessions();
+
+    renderDocumentWorkspace();
+};
+
+initializeStudyWorkspace();
 
 });

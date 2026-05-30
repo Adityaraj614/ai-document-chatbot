@@ -1196,7 +1196,9 @@ body.study-page{
 }
 
 .study-sidebar .mode-btn,
-.study-sidebar .feature-btn{
+.study-sidebar .feature-btn,
+.study-sidebar .session-action-btn,
+.study-sidebar .session-btn{
     font-family: 'DM Sans', sans-serif;
     cursor: pointer;
     transition: var(--transition);
@@ -1214,7 +1216,9 @@ body.study-page{
 }
 
 .study-sidebar .mode-btn:hover,
-.study-sidebar .feature-btn:hover{
+.study-sidebar .feature-btn:hover,
+.study-sidebar .session-action-btn:hover,
+.study-sidebar .session-btn:hover{
     border-color: rgba(201,168,76,0.45);
     color: var(--accent-gold);
     background: rgba(201,168,76,0.06);
@@ -1226,6 +1230,28 @@ body.study-page{
     border-color: rgba(201,168,76,0.68);
     color: #d7bd68;
     background: rgba(201,168,76,0.11);
+}
+
+.study-sidebar .active-session{
+    border-color: rgba(201,168,76,0.85);
+    background: rgba(201,168,76,0.16);
+    color: #f0d57a;
+    box-shadow: 0 0 16px rgba(201,168,76,0.18);
+}
+
+.active-session-badge{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: rgba(201,168,76,0.18);
+    border: 1px solid rgba(201,168,76,0.4);
+    color: #f0d57a;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-top: 6px;
 }
 
 .study-upload-box{
@@ -1291,7 +1317,9 @@ body.study-page{
     gap: 10px;
 }
 
-.study-sidebar .feature-btn{
+.study-sidebar .feature-btn,
+.study-sidebar .session-action-btn,
+.study-sidebar .session-btn{
     width: 100%;
     min-height: 42px;
     padding: 11px 13px;
@@ -1303,6 +1331,41 @@ body.study-page{
     font-size: 0.9rem;
     font-weight: 500;
     letter-spacing: 0.15px;
+}
+
+.study-sidebar .feature-btn:disabled{
+    opacity: 0.42;
+    cursor: not-allowed;
+    color: #747d8b;
+    background: rgba(255,255,255,0.018);
+    border-color: rgba(255,255,255,0.055);
+    box-shadow: none;
+}
+
+.study-sidebar .feature-btn:disabled:hover{
+    color: #747d8b;
+    background: rgba(255,255,255,0.018);
+    border-color: rgba(255,255,255,0.055);
+    box-shadow: none;
+}
+
+.study-sidebar .recent-session-list{
+    display: grid;
+    gap: 10px;
+}
+
+.study-sidebar .session-btn span,
+.study-sidebar .session-btn small,
+.study-sidebar .recent-session-empty{
+    display: block;
+}
+
+.study-sidebar .session-btn small,
+.study-sidebar .recent-session-empty{
+    color: #8f9bae;
+    font-size: 0.78rem;
+    font-weight: 400;
+    line-height: 1.45;
 }
 
 .study-divider{
@@ -1365,6 +1428,30 @@ body.study-page{
     font-size: 0.98rem;
     font-weight: 400;
     line-height: 1.75;
+}
+
+.active-session-info{
+    margin: 24px 48px 0;
+    padding: 12px 16px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.02);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.active-session-info span{
+    font-size: 0.72rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+}
+
+.active-session-info strong{
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 .workspace-content{

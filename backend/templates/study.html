@@ -15,6 +15,14 @@
         </div>
 
         <div class="sidebar-section">
+            <p class="sidebar-section-label">New Chat</p>
+
+            <button class="session-action-btn" id="newChatButton" type="button">
+                + New Chat
+            </button>
+        </div>
+
+        <div class="sidebar-section">
             <p class="sidebar-section-label">Processing Mode</p>
 
             <div class="mode-options">
@@ -53,10 +61,18 @@
             <p class="sidebar-section-label">Features</p>
 
             <div class="feature-actions">
-                <button class="feature-btn" data-workspace="chat">AI Chat</button>
-                <button class="feature-btn" data-workspace="summary">Generate Summary</button>
-                <button class="feature-btn" data-workspace="exam">Exam Notes</button>
-                <button class="feature-btn" data-workspace="beginner">Beginner Mode</button>
+                <button class="feature-btn" data-workspace="chat" disabled>AI Chat</button>
+                <button class="feature-btn" data-workspace="summary" disabled>Generate Summary</button>
+                <button class="feature-btn" data-workspace="exam" disabled>Exam Notes</button>
+                <button class="feature-btn" data-workspace="beginner" disabled>Beginner Mode</button>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <p class="sidebar-section-label">Recent Sessions</p>
+
+            <div class="recent-session-list" id="recentSessionsList">
+                <p class="recent-session-empty">No recent sessions</p>
             </div>
         </div>
 
